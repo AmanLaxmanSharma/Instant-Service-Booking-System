@@ -1,16 +1,53 @@
-# React + Vite
+# Instant House Help Booking System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A smart, automated platform for booking nearby house help professionals instantly. Built with React.js, Firebase, and Modern CSS.
 
-Currently, two official plugins are available:
+## Features
+- **Instant Booking**: Find professionals in minutes.
+- **3D Earth Visualization**: Interactive globe with real-time location mapping.
+- **Smart Matching**: Auto-assigns the nearest available provider.
+- **Secure Auth**: Powered by Firebase Authentication.
+- **Premium UI**: Glassmorphism design with smooth animations.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
+- **Frontend**: React.js, Vite, Framer Motion
+- **Maps**: Leaflet (OpenStreetMap)
+- **Backend**: Firebase (Auth, Firestore, Functions)
+- **Icons**: Lucide React
 
-## React Compiler
+## Setup Instructions
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. Prerequisites
+- Node.js installed
+- Firebase account created
 
-## Expanding the ESLint configuration
+### 2. Installation
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 3. Firebase Configuration
+1. Go to [Firebase Console](https://console.firebase.google.com/).
+2. Create a new project.
+3. Register a Web App.
+4. Copy the `firebaseConfig` object.
+5. Open `src/lib/firebase.js` and paste your config keys.
+
+### 4. Run Locally
+```bash
+npm run dev
+```
+
+## Folder Structure
+- `src/components`: UI components (Navbar, Cards)
+- `src/pages`: Main application pages (Home, Booking, Login)
+- `src/lib`: Configuration files (Firebase)
+- `src/assets`: Static assets
+
+## Deployment
+To deploy to Firebase Hosting:
+1. `npm install -g firebase-tools`
+2. `firebase login`
+3. `firebase init` (Select Hosting, point to `dist` folder)
+4. `npm run build`
+5. `firebase deploy`
