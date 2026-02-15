@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars, Html } from '@react-three/drei';
+import { OrbitControls, Stars, Html, useGLTF, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
-
-const EARTH_TEXTURE_URL = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
 
 // Utility: Lat/Lon to Vector3
 const latLongToVector3 = (lat, lng, radius) => {
@@ -37,48 +35,50 @@ const CameraController = ({ userLocation, radius }) => {
     return null;
 };
 
-// Earth Sphere Component
-const EarthSphere = ({ userLocation }) => {
-    const meshRef = useRef();
-    const [texture, setTexture] = useState(null);
+// Fallback Component
+const WireframeEarth = () => {
+    return (
+        <mesh>
+            <sphereGeometry args={[2, 32, 32]} />
+            <meshStandardMaterial color="#334155" wireframe />
+        </mesh>
+    );
+};
+
+// Earth Model Component
+const EarthModel = ({ userLocation }) => {
+    const { scene } = useGLTF('/earth_model/scene.gltf');
+    const texture = useTexture('/earth_model/textures/Material.002_diffuse.jpeg');
+    const groupRef = useRef();
 
     useEffect(() => {
-        const loader = new THREE.TextureLoader();
-        // Intentionally avoiding setCrossOrigin as requested
-        loader.load(
-            EARTH_TEXTURE_URL,
-            (loadedTexture) => {
-                setTexture(loadedTexture);
-            },
-            undefined,
-            (error) => {
-                console.error("Failed to load texture:", error);
+        // Fix for potential GLTF material issues (e.g. SpecularGlossiness not supported)
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                    map: texture,
+                    roughness: 0.7,
+                    metalness: 0.1,
+                });
             }
-        );
-    }, []);
+        });
+    }, [scene, texture]);
 
     useFrame((state, delta) => {
         // Rotate slowly if no user location is active
-        if (meshRef.current && !userLocation) {
-            meshRef.current.rotation.y += delta * 0.1;
+        if (groupRef.current && !userLocation) {
+            groupRef.current.rotation.y += delta * 0.1;
         }
     });
 
-    // Fallback: Show wireframe until texture is loaded
-    if (!texture) {
-        return (
-            <mesh ref={meshRef}>
-                <sphereGeometry args={[2, 32, 32]} />
-                <meshStandardMaterial color="#334155" wireframe />
-            </mesh>
-        );
-    }
+    // The scale of the loaded model needs to be adjusted to match radius ~2
+    // The original model (Sketchfab) seems to have a scale of 100 on the Sphere node.
+    // We scale the whole scene down to match our scene units.
 
     return (
-        <mesh ref={meshRef}>
-            <sphereGeometry args={[2, 64, 64]} />
-            <meshStandardMaterial map={texture} />
-        </mesh>
+        <group ref={groupRef}>
+            <primitive object={scene} scale={[0.02, 0.02, 0.02]} />
+        </group>
     );
 };
 
@@ -133,12 +133,14 @@ const Earth3D = ({ userLocation, providerLocation }) => {
             <color attach="background" args={['#0f172a']} />
 
             {/* Lighting strictly as requested */}
-            <ambientLight intensity={1} />
+            <ambientLight intensity={1.5} />
             <directionalLight position={[5, 5, 5]} intensity={2} />
 
             <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
 
-            <EarthSphere userLocation={userLocation} />
+            <Suspense fallback={<WireframeEarth />}>
+                <EarthModel userLocation={userLocation} />
+            </Suspense>
 
             {/* Markers & Interaction */}
             {userLocation && (
