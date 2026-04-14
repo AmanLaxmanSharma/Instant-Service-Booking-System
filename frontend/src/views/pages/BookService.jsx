@@ -135,7 +135,15 @@ const BookService = () => {
     };
 
     const handleConfirm = () => {
-        setStatus('confirmed');
+        // Redirect to payment page with booking details
+        const params = new URLSearchParams({
+            vendorId: provider?.id || vendorId || 'unknown',
+            serviceType: serviceId || 'general',
+            amount: '99.99',
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        navigate(`/payment?${params.toString()}`);
     };
 
     return (

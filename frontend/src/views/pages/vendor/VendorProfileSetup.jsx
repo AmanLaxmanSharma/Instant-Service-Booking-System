@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../models/context/AuthContext';
 import { createProvider, getProviderByUserId } from '../../../models/services/db';
 import { motion } from 'framer-motion';
-import { User, Phone, DollarSign, CheckCircle } from 'lucide-react';
+import { User, Phone, DollarSign, CheckCircle, MapPin, Loader2, Navigation } from 'lucide-react';
 
 const services = [
     { id: 'cleaning', name: 'Home Cleaning', icon: '🧹' },
@@ -24,6 +24,9 @@ const VendorProfileSetup = () => {
         hourlyRate: '',
         description: ''
     });
+    const [location, setLocation] = useState({ lat: null, lng: null });
+    const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
+    const [locationError, setLocationError] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -31,7 +34,7 @@ const VendorProfileSetup = () => {
         // Check if vendor already has a profile
         const checkProfile = async () => {
             if (currentUser) {
-                const provider = await getProviderByUserId(currentUser.uid);
+                const provider = await getProviderByUserId(currentUser.id);
                 if (provider) {
                     navigate('/vendor');
                 }
@@ -39,6 +42,35 @@ const VendorProfileSetup = () => {
         };
         checkProfile();
     }, [currentUser, navigate]);
+
+    const requestLocation = () => {
+        if (!navigator.geolocation) {
+            setLocationError('Geolocation is not supported by your browser');
+            setLocationStatus('error');
+            return;
+        }
+
+        setLocationStatus('loading');
+        setLocationError('');
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocation({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                });
+                setLocationStatus('success');
+            },
+            (error) => {
+                let errorMsg = 'Unable to get your location';
+                if (error.code === error.PERMISSION_DENIED) {
+                    errorMsg = 'Location permission denied. Please enable it in settings.';
+                }
+                setLocationError(errorMsg);
+                setLocationStatus('error');
+            }
+        );
+    };
 
     const handleServiceToggle = (serviceId) => {
         setFormData(prev => ({
@@ -52,8 +84,8 @@ const VendorProfileSetup = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!formData.name || !formData.phone || formData.services.length === 0 || !formData.hourlyRate) {
-            setError('Please fill in all required fields');
+        if (!formData.name || !formData.phone || formData.services.length === 0 || !formData.hourlyRate || location.lat === null || location.lng === null) {
+            setError('Please fill in all required fields and grant location permission');
             return;
         }
 
@@ -61,13 +93,21 @@ const VendorProfileSetup = () => {
             setError('');
             setLoading(true);
             await createProvider({
-                userId: currentUser.uid,
-                name: formData.name,
-                phone: formData.phone,
-                services: formData.services,
-                hourlyRate: parseFloat(formData.hourlyRate),
+                businessName: formData.name,
                 description: formData.description,
-                email: currentUser.email
+                serviceType: formData.services[0],
+                location: {
+                    address: {
+                        street: formData.name,
+                        city: 'Current Location',
+                        state: 'Current',
+                        zipCode: '00000'
+                    },
+                    coordinates: {
+                        type: 'Point',
+                        coordinates: [location.lng, location.lat]
+                    }
+                }
             });
             navigate('/vendor');
         } catch (err) {
@@ -224,6 +264,100 @@ const VendorProfileSetup = () => {
                         />
                     </div>
 
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <MapPin size={20} />
+                            Your Service Location *
+                        </h3>
+
+                        {locationStatus === 'idle' && (
+                            <button
+                                type="button"
+                                onClick={requestLocation}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    border: '2px dashed rgba(59, 130, 246, 0.5)',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(59, 130, 246, 0.05)',
+                                    color: 'var(--primary)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.75rem',
+                                    fontSize: '1rem',
+                                    fontWeight: '500',
+                                    transition: 'all 0.3s'
+                                }}
+                            >
+                                <Navigation size={20} />
+                                Grant Location Permission
+                            </button>
+                        )}
+
+                        {locationStatus === 'loading' && (
+                            <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                color: 'var(--primary)'
+                            }}>
+                                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                                Requesting your location...
+                            </div>
+                        )}
+
+                        {locationStatus === 'success' && (
+                            <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                color: '#6ee7b7'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                                    <CheckCircle size={20} />
+                                    <strong>Location Captured</strong>
+                                </div>
+                                <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                                    Latitude: {location.lat?.toFixed(4)} | Longitude: {location.lng?.toFixed(4)}
+                                </p>
+                            </div>
+                        )}
+
+                        {locationStatus === 'error' && (
+                            <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#fca5a5'
+                            }}>
+                                <p style={{ margin: 0, marginBottom: '0.75rem' }}>{locationError}</p>
+                                <button
+                                    type="button"
+                                    onClick={requestLocation}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        background: 'rgba(239, 68, 68, 0.2)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        borderRadius: '0.25rem',
+                                        color: '#fca5a5',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem'
+                                    }}
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     {error && (
                         <div style={{
                             color: '#ef4444',
@@ -239,18 +373,18 @@ const VendorProfileSetup = () => {
 
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || locationStatus !== 'success'}
                         style={{
                             width: '100%',
                             padding: '0.75rem',
-                            background: 'var(--primary)',
+                            background: loading || locationStatus !== 'success' ? '#6b7280' : 'var(--primary)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '0.5rem',
                             fontSize: '1rem',
                             fontWeight: '500',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            opacity: loading ? 0.7 : 1,
+                            cursor: loading || locationStatus !== 'success' ? 'not-allowed' : 'pointer',
+                            opacity: loading || locationStatus !== 'success' ? 0.7 : 1,
                             transition: 'all 0.2s'
                         }}
                     >

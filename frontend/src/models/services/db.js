@@ -1,211 +1,276 @@
-// Model: Database service functions for CRUD operations on services, bookings, and users
-import { db, auth } from '../lib/firebase';
+// Model: Database service functions for CRUD operations using backend API
 import {
-    collection,
-    addDoc,
-    updateDoc,
-    doc,
-    onSnapshot,
-    query,
-    where,
-    getDocs,
-    serverTimestamp
-} from 'firebase/firestore';
+    createBooking as apiCreateBooking,
+    getBookings as apiGetBookings,
+    getBooking as apiGetBooking,
+    getProviders as apiGetProviders,
+    getProvider as apiGetProvider,
+    updateBookingStatus as apiUpdateBookingStatus,
+    cancelBooking as apiCancelBooking,
+    getVendorProfile as apiGetVendorProfile,
+    updateVendorProfile as apiUpdateVendorProfile,
+    setProviderAvailability as apiSetProviderAvailability,
+    createProvider as apiCreateProvider,
+    processPayment as apiProcessPayment
+} from './api';
 
 /**
- * Creates a new booking request in Firestore.
- * This will trigger the backend Cloud Function to process the request.
+ * Creates a new booking request in the backend.
  * 
  * @param {Object} bookingDetails 
  * @param {string} bookingDetails.serviceType - The type of service (e.g., 'cleaning')
- * @param {Object} bookingDetails.location - User's location { latitude: number, longitude: number }
- * @param {string} bookingDetails.userId - The ID of the authenticated user
+ * @param {Object} bookingDetails.location - User's location
+ * @param {string} bookingDetails.providerId - The ID of the provider
+ * @param {string} bookingDetails.scheduledDate - Date for the booking
+ * @param {string} bookingDetails.scheduledTime - Time for the booking
  * @returns {Promise<string>} The ID of the newly created booking document.
  */
 export const createBooking = async (bookingDetails) => {
     try {
-        const docRef = await addDoc(collection(db, 'bookings'), {
-            ...bookingDetails,
-            status: 'pending', // Initial status
-            timestamp: serverTimestamp(), // Firebase server time
-            estimatedArrivalTime: null,
-            providerId: null
-        });
-        console.log("Booking created with ID: ", docRef.id);
-        return docRef.id;
-    } catch (e) {
-        console.error("Error adding booking: ", e);
-        throw e;
+        const response = await apiCreateBooking(bookingDetails);
+        console.log("Booking created with ID: ", response.data._id);
+        return response.data._id;
+    } catch (error) {
+        console.error("Error adding booking: ", error);
+        throw error;
     }
 };
 
 /**
- * Listens for real-time updates on a specific booking.
- * Use this to update the UI when the status changes from 'pending' to 'confirmed'.
+ * Fetches bookings for the current user with real-time updates capability.
  * 
- * @param {string} bookingId 
- * @param {Function} callback - Function to call with the updated booking data
- * @returns {Function} Unsubscribe function to stop listening
+ * @param {Object} filters - Filter options { page, limit, status, serviceType }
+ * @returns {Promise<Object>} Bookings data with pagination
  */
-export const listenToBooking = (bookingId, callback) => {
-    const unsub = onSnapshot(doc(db, "bookings", bookingId), (doc) => {
-        if (doc.exists()) {
-            callback({ id: doc.id, ...doc.data() });
-        } else {
-            console.log("No such booking!"); // Could happen if deleted
-            callback(null);
-        }
-    });
-    return unsub; // Call this function to stop listening when component unmounts
-};
-
-/**
- * Fetches available providers for a given service type.
- * Useful for showing a "Nearby Providers" list on the UI.
- * 
- * @param {string} serviceType 
- * @returns {Promise<Array>} List of providers
- */
-export const getAvailableProviders = async (serviceType) => {
+export const getBookingsList = async (filters = {}) => {
     try {
-        const q = query(
-            collection(db, "providers"),
-            where("serviceType", "==", serviceType),
-            where("status", "==", "available")
-        );
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (e) {
-        console.error("Error fetching providers: ", e);
-        return [];
+        const response = await apiGetBookings(filters);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching bookings: ", error);
+        return { bookings: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } };
     }
 };
 
 /**
- * Creates a new user profile in the 'users' collection after authentication.
- * 
- * @param {string} uid 
- * @param {Object} userData - { email, displayName, phone, etc. }
+ * Alias for getBookingsList for user bookings
  */
-export const createUserProfile = async (uid, userData) => {
-    try {
-        await updateDoc(doc(db, "users", uid), {
-            ...userData,
-            updatedAt: serverTimestamp()
-        }, { merge: true }); // Only update provided fields
-    } catch (e) {
-        console.error("Error creating user profile: ", e);
-    }
-};
-
-export const getAllBookings = async () => {
-    try {
-        const querySnapshot = await getDocs(collection(db, 'bookings'));
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (e) {
-        console.error('Error fetching all bookings: ', e);
-        return [];
-    }
-};
-
 export const getUserBookings = async (userId) => {
     try {
-        const q = query(collection(db, 'bookings'), where('userId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (e) {
-        console.error('Error fetching user bookings: ', e);
+        const response = await apiGetBookings();
+        return response.data.bookings;
+    } catch (error) {
+        console.error("Error fetching user bookings: ", error);
         return [];
     }
 };
 
+/**
+ * Alias for getBookingsList for vendor bookings
+ */
 export const getVendorBookings = async (vendorId) => {
     try {
-        const q = query(collection(db, 'bookings'), where('providerId', '==', vendorId));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (e) {
-        console.error('Error fetching vendor bookings: ', e);
+        const response = await apiGetBookings();
+        return response.data.bookings;
+    } catch (error) {
+        console.error("Error fetching vendor bookings: ", error);
         return [];
     }
 };
 
+/**
+ * Get all bookings (admin function)
+ */
+export const getAllBookings = async () => {
+    try {
+        const response = await apiGetBookings({ limit: 1000 });
+        return response.data.bookings;
+    } catch (error) {
+        console.error("Error fetching all bookings: ", error);
+        return [];
+    }
+};
+
+/**
+ * Fetches a specific booking by ID.
+ * 
+ * @param {string} bookingId 
+ * @returns {Promise<Object>} Booking data
+ */
+export const fetchBooking = async (bookingId) => {
+    try {
+        const response = await apiGetBooking(bookingId);
+        return response.data.booking;
+    } catch (error) {
+        console.error("Error fetching booking: ", error);
+        return null;
+    }
+};
+
+/**
+ * Updates a booking status.
+ * 
+ * @param {string} bookingId 
+ * @param {string} status - New status
+ * @returns {Promise<Object>} Updated booking data
+ */
 export const updateBookingStatus = async (bookingId, status) => {
     try {
-        await updateDoc(doc(db, 'bookings', bookingId), { status, updatedAt: serverTimestamp() });
-    } catch (e) {
-        console.error('Error updating booking status: ', e);
-        throw e;
-    }
-};
-
-export const setProviderAvailability = async (providerId, available) => {
-    try {
-        await updateDoc(doc(db, 'providers', providerId), { status: available ? 'available' : 'unavailable', updatedAt: serverTimestamp() });
-    } catch (e) {
-        console.error('Error updating provider availability: ', e);
-        throw e;
+        const response = await apiUpdateBookingStatus(bookingId, status);
+        return response.data;
+    } catch (error) {
+        console.error("Error updating booking status: ", error);
+        throw error;
     }
 };
 
 /**
- * Creates a new provider profile in the 'providers' collection.
+ * Cancels a booking.
  * 
- * @param {Object} providerData - { userId, name, phone, services, price, etc. }
- * @returns {Promise<string>} The ID of the newly created provider document.
+ * @param {string} bookingId 
+ * @returns {Promise<Object>} Response data
  */
-export const createProvider = async (providerData) => {
+export const cancelBookingRequest = async (bookingId) => {
     try {
-        const docRef = await addDoc(collection(db, 'providers'), {
-            ...providerData,
-            status: 'unavailable', // Initially unavailable until they go live
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-        console.log("Provider created with ID: ", docRef.id);
-        return docRef.id;
-    } catch (e) {
-        console.error("Error creating provider: ", e);
-        throw e;
+        const response = await apiCancelBooking(bookingId);
+        return response.data;
+    } catch (error) {
+        console.error("Error cancelling booking: ", error);
+        throw error;
     }
 };
 
 /**
- * Gets provider profile by userId.
+ * Fetches available providers for a given service type or location.
  * 
- * @param {string} userId
+ * @param {Object} filters - Filter options { serviceType, latitude, longitude, radius, page, limit }
+ * @returns {Promise<Array>} List of providers
+ */
+export const getAvailableProviders = async (filters = {}) => {
+    try {
+        const response = await apiGetProviders(filters);
+        return response.data.providers;
+    } catch (error) {
+        console.error("Error fetching providers: ", error);
+        return [];
+    }
+};
+
+/**
+ * Fetches a specific provider by ID.
+ * 
+ * @param {string} providerId 
+ * @returns {Promise<Object>} Provider data
+ */
+export const fetchProvider = async (providerId) => {
+    try {
+        const response = await apiGetProvider(providerId);
+        return response.data.provider;
+    } catch (error) {
+        console.error("Error fetching provider: ", error);
+        return null;
+    }
+};
+
+/**
+ * Fetches the current vendor's profile.
+ * 
+ * @returns {Promise<Object>} Vendor profile data
+ */
+export const getVendorProfile = async () => {
+    try {
+        const response = await apiGetVendorProfile();
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching vendor profile: ", error);
+        return null;
+    }
+};
+
+/**
+ * Updates the current vendor's profile.
+ * 
+ * @param {Object} profileData - Profile information to update
+ * @returns {Promise<Object>} Updated profile data
+ */
+export const updateVendorProfileData = async (profileData) => {
+    try {
+        const response = await apiUpdateVendorProfile(profileData);
+        return response.data;
+    } catch (error) {
+        console.error("Error updating vendor profile: ", error);
+        throw error;
+    }
+};
+
+/**
+ * Sets provider availability status
+ * 
+ * @param {string} providerId - Provider ID
+ * @param {boolean} isAvailable - Availability status
+ * @returns {Promise<Object>} Updated provider data
+ */
+export const setProviderAvailability = async (providerId, isAvailable) => {
+    try {
+        const response = await apiSetProviderAvailability(providerId, isAvailable);
+        return response.data;
+    } catch (error) {
+        console.error("Error setting provider availability: ", error);
+        throw error;
+    }
+};
+
+/**
+ * Gets provider profile for a user.
+ * Calls the API to get the current vendor's provider profile.
+ * 
+ * @param {string} userId - User ID (currently unused, gets current vendor's profile)
  * @returns {Promise<Object|null>} Provider data or null if not found
  */
 export const getProviderByUserId = async (userId) => {
     try {
-        const q = query(collection(db, 'providers'), where('userId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            return { id: doc.id, ...doc.data() };
+        const response = await apiGetVendorProfile();
+        if (response.data && response.data.provider) {
+            return {
+                id: response.data.provider._id,
+                uid: response.data.provider.user,
+                ...response.data.provider
+            };
         }
         return null;
-    } catch (e) {
-        console.error('Error fetching provider: ', e);
+    } catch (error) {
+        console.error("Error fetching provider profile: ", error);
         return null;
     }
 };
 
 /**
- * Updates provider profile.
+ * Creates a new provider profile.
  * 
- * @param {string} providerId
- * @param {Object} updateData
+ * @param {Object} providerData - Provider information
+ * @returns {Promise<Object>} Created provider data
  */
-export const updateProvider = async (providerId, updateData) => {
+export const createProvider = async (providerData) => {
     try {
-        await updateDoc(doc(db, 'providers', providerId), {
-            ...updateData,
-            updatedAt: serverTimestamp()
-        });
-    } catch (e) {
-        console.error('Error updating provider: ', e);
-        throw e;
+        const response = await apiCreateProvider(providerData);
+        return response.data || response;
+    } catch (error) {
+        console.error("Error creating provider: ", error);
+        throw error;
     }
 };
 
+/**
+ * Process payment and create booking (Backend handles both atomically)
+ * @param {Object} paymentData - Payment and booking information
+ * @returns {Promise<Object>} Created booking data
+ */
+export const processPaymentAndBooking = async (paymentData) => {
+    try {
+        const response = await apiProcessPayment(paymentData);
+        return response.data;
+    } catch (error) {
+        console.error("Error processing payment: ", error);
+        throw error;
+    }
+};

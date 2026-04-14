@@ -8,6 +8,7 @@ import Register from './pages/Register';
 import Services from './pages/Services';
 import ChooseVendor from './pages/ChooseVendor';
 import BookService from './pages/BookService';
+import Payment from './pages/Payment';
 import History from './pages/History';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -63,6 +64,11 @@ function App() {
           <Route path="/book/:serviceId" element={
             <ProtectedRoute allowedRoles={['user', 'admin']}>
               <BookService />
+            </ProtectedRoute>
+          } />
+          <Route path="/payment" element={
+            <ProtectedRoute allowedRoles={['user', 'admin']}>
+              <Payment />
             </ProtectedRoute>
           } />
           <Route path="/history" element={

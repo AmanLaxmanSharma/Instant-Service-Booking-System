@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 
 const Register = () => {
     const { currentUser, userRole, signup } = useAuth();
+    const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,7 +30,7 @@ const Register = () => {
         try {
             setError('');
             setLoading(true);
-            await signup(email, password, role);
+            await signup(name, email, password, role);
         } catch (err) {
             setError('Failed to create an account. ' + err.message);
         } finally {
@@ -90,6 +91,28 @@ const Register = () => {
                 }}>{error}</div>}
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Full Name</label>
+                        <input
+                            type="text"
+                            required
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(0, 0, 0, 0.2)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '0.5rem',
+                                color: 'white',
+                                outline: 'none',
+                                transition: 'all 0.2s'
+                            }}
+                            onFocus={(e) => e.target.style.border = '1px solid var(--primary)'}
+                            onBlur={(e) => e.target.style.border = '1px solid rgba(255, 255, 255, 0.1)'}
+                        />
+                    </div>
+
                     <div>
                         <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Email Address</label>
                         <input

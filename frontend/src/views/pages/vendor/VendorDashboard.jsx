@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { useAuth } from '../../../models/context/AuthContext';
-import { Briefcase, CalendarClock, DollarSign, Star, Power, PowerOff } from 'lucide-react';
+import { Briefcase, CalendarClock, DollarSign, Star, Power, PowerOff, CheckCircle, XCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getProviderByUserId, setProviderAvailability, getVendorBookings } from '../../../models/services/db';
+import { getProviderByUserId, setProviderAvailability, getVendorBookings, updateBookingStatus } from '../../../models/services/db';
 import { Navigate } from 'react-router-dom';
 
 const VendorDashboard = () => {
@@ -15,7 +15,7 @@ const VendorDashboard = () => {
     useEffect(() => {
         const loadData = async () => {
             if (currentUser) {
-                const providerData = await getProviderByUserId(currentUser.uid);
+                const providerData = await getProviderByUserId(currentUser.id);
                 if (!providerData) {
                     // Redirect to setup if no profile
                     return;
@@ -23,13 +23,35 @@ const VendorDashboard = () => {
                 setProvider(providerData);
                 setIsLive(providerData.status === 'available');
 
-                const vendorBookings = await getVendorBookings(currentUser.uid);
+                const vendorBookings = await getVendorBookings(currentUser.id);
                 setBookings(vendorBookings);
             }
             setLoading(false);
         };
         loadData();
     }, [currentUser]);
+
+    const handleAcceptBooking = async (bookingId) => {
+        try {
+            await updateBookingStatus(bookingId, 'accepted');
+            // Refresh bookings
+            const vendorBookings = await getVendorBookings(currentUser.id);
+            setBookings(vendorBookings);
+        } catch (error) {
+            console.error('Error accepting booking:', error);
+        }
+    };
+
+    const handleRejectBooking = async (bookingId) => {
+        try {
+            await updateBookingStatus(bookingId, 'rejected');
+            // Refresh bookings
+            const vendorBookings = await getVendorBookings(currentUser.id);
+            setBookings(vendorBookings);
+        } catch (error) {
+            console.error('Error rejecting booking:', error);
+        }
+    };
 
     const handleToggleLive = async () => {
         if (!provider) return;
@@ -151,14 +173,62 @@ const VendorDashboard = () => {
                                     <div>
                                         <p style={{ margin: 0, fontWeight: '500' }}>{booking.serviceType}</p>
                                         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            Status: {booking.status}
+                                            Status: <strong style={{ 
+                                                color: booking.status === 'pending' ? '#f59e0b' : 
+                                                       booking.status === 'accepted' ? '#10b981' : 
+                                                       booking.status === 'completed' ? '#3b82f6' : '#ef4444'
+                                            }}>{booking.status}</strong>
                                         </p>
                                     </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <p style={{ margin: 0, fontWeight: '500' }}>${booking.price || 'TBD'}</p>
-                                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                                            {new Date(booking.timestamp?.toDate?.() || booking.timestamp).toLocaleDateString()}
-                                        </p>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <p style={{ margin: 0, fontWeight: '500' }}>${booking.price || 'TBD'}</p>
+                                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                                {new Date(booking.timestamp?.toDate?.() || booking.timestamp).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        {booking.status === 'pending' && (
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button
+                                                    onClick={() => handleAcceptBooking(booking.id)}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        background: '#10b981',
+                                                        border: 'none',
+                                                        borderRadius: '0.25rem',
+                                                        color: 'white',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.5rem',
+                                                        fontSize: '0.9rem',
+                                                        fontWeight: '500'
+                                                    }}
+                                                >
+                                                    <CheckCircle size={16} />
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRejectBooking(booking.id)}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        background: '#ef4444',
+                                                        border: 'none',
+                                                        borderRadius: '0.25rem',
+                                                        color: 'white',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '0.5rem',
+                                                        fontSize: '0.9rem',
+                                                        fontWeight: '500'
+                                                    }}
+                                                >
+                                                    <XCircle size={16} />
+                                                    Reject
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
